@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BaseShift - Number System Converter</title>
+    <style>
+        /* CSS styles will go here, see Section 2 for the code */
+    </style>
+    <link rel="stylesheet" href="./nsc.css">
+</head>
+<body>
+
+ <div>
+
+    <div class="converter-app">
+        <h1 class="app-title">BaseShift</h1>
+
+        <div class="card source-card">
+            <div class="base-selector">
+                <l<!DOabel for="baseFromSelect">Input Base:</label>
+                <select id="baseFromSelect" onchange="handleBaseChange()">
+                    <option value="10" selected>Decimal (10)</option>
+                    <option value="2">Binary (2)</option>
+                    <option value="16">Hexadecimal (16)</option>
+                    <option value="8">Octal (8)</option>
+                    <option value="custom">Custom...</option>
+                </select>
+            </div>
+            
+            <input type="number" id="customBaseInput" placeholder="2-36" min="2" max="36" 
+                   class="input-field custom-base-field" style="display: none;" 
+                   oninput="handleBaseChange()">
+            
+            <input 
+                type="text" 
+                id="numberInput" 
+                placeholder="Enter a number" 
+                class="input-field primary-input"
+                oninput="handleInputChange(this.value, document.getElementById('baseFromSelect').value)"
+                autofocus>
+                
+            <p id="errorMsg" class="error-message"></p>
+        </div>
+
+        <div class="card target-card">
+            <h2>Results</h2>
+          
+            <div class="output-row">
+                <span class="label">Binary (Base 2)</span>
+                <input type="text" id="outputBinary" class="output-field" readonly>
+            </div>
+            
+            <div class="output-row">
+                <span class="label">Octal (Base 8)</span>
+                <input type="text" id="outputOctal" class="output-field" readonly>
+            </div>
+            
+            <div class="output-row">
+                <span class="label">Decimal (Base 10)</span>
+                <input type="text" id="outputDecimal" class="output-field" readonly>
+                <button class="step-button" onclick="showSteps(10)">i</button>
+            </div>
+            
+            <div class="output-row">
+                <span class="label">Hexadecimal (Base 16)</span>
+                <input type="text" id="outputHex" class="output-field" readonly>
+                <button class="step-button" onclick="showSteps(16)">i</button>
+            </div>
+        </div>
+        
+        <div id="stepModal" class="modal">
+            <div class="modal-content">
+                <span class="close-button" onclick="closeModal()">&times;</span>
+                <h3>Conversion Steps</h3>
+                <pre id="stepContent"></pre>
+            </div>
+        </div>
+
+    </div>
+
+ </div>    
+    <script>
+        /// --- CORE CONVERSION FUNCTION ---
+/**
+ * Converts a number string from a starting base to a target base.
+ * Supports bases 2 (Binary) through 36 (using 0-9 and A-Z).
+ * @param {string} numberStr - The input number (e.g., 'A3F', '10110').
+ * @param {number} baseFrom - The starting base (e.g., 16, 2, 10).
+ * @param {number} baseTo - The target base (e.g., 10, 8, 16).
+ * @returns {string} The converted number, or an error code 'ERROR_INVALID_DIGIT'.
+ */
+function convertBase(numberStr, baseFrom, baseTo) {
+    if (!numberStr) return ''; // Handle empty input
+
+    // Step 1: Convert to Decimal (Base 10) using built-in JavaScript function
+    let decimalValue = parseInt(numberStr, baseFrom);
+
+    if (isNaN(decimalValue)) {
+        // This is the key error check: if the input string contains invalid digits for baseFrom, parseInt returns NaN.
+        return "ERROR_INVALID_DIGIT";
+    }
+
+    if (decimalValue === 0) {
+        return '0';
+    }
+
+    // Step 2: Convert Decimal to Target Base using built-in JavaScript function
+    // .toString(base) handles the conversion and uses letters (A-Z) for bases > 10
+    return decimalValue.toString(baseTo).toUpperCase();
+}
+
+// --- DOM REFERENCES ---
+const inputField = document.getElementById('numberInput');
+const baseSelect = document.getElementById('baseFromSelect');
+const customBaseInput = document.getElementById('customBaseInput');
+const errorMsg = document.getElementById('errorMsg');
+
+const outputMap = {
+    2: document.getElementById('outputBinary'),
+    8: document.getElementById('outputOctal'),
+    10: document.getElementById('outputDecimal'),
+    16: document.getElementById('outputHex')
+};
+
+// --- ERROR HANDLING AND UI UPDATES ---
+function displayError(message) {
+    errorMsg.textContent = message;
+    errorMsg.style.display = 'block';
+    // You would need a .input-error CSS class to highlight the field red
+    inputField.classList.add('input-error'); 
+}
+
+function clearError() {
+    errorMsg.textContent = '';
+    errorMsg.style.display = 'none';
+    inputField.classList.remove('input-error');
+}
+
+// --- MAIN INPUT HANDLER (Real-Time Conversion) ---
+function handleInputChange() {
+    clearError();
+    
+    // 1. Determine the source base
+    let sourceBaseValue = baseSelect.value;
+    let baseFrom = sourceBaseValue === 'custom' 
+        ? parseInt(customBaseInput.value) 
+        : parseInt(sourceBaseValue);
+
+    const inputStr = inputField.value.trim().toUpperCase();
+
+    // 2. Initial validation for custom base
+    if (sourceBaseValue === 'custom') {
+        if (baseFrom < 2 || baseFrom > 36 || isNaN(baseFrom)) {
+            displayError("Custom base must be an integer between 2 and 36.");
+            Object.values(outputMap).forEach(el => el.value = ''); 
+            return;
+        }
+    }
+
+    if (inputStr === '') {
+        // Clear all outputs and stop if input is empty
+        Object.values(outputMap).forEach(el => el.value = ''); 
+        return;
+    }
+
+    // 3. Process all conversions
+    let hasError = false;
+    const targetBases = [2, 8, 10, 16];
+
+    for (const baseTo of targetBases) {
+        const result = convertBase(inputStr, baseFrom, baseTo);
+
+        if (result === "ERROR_INVALID_DIGIT") {
+            // Display error and set flag
+            displayError(`Invalid digit for Base ${baseFrom}.`);
+            outputMap[baseTo].value = 'N/A';
+            hasError = true;
+        } else {
+            outputMap[baseTo].value = result;
+        }
+    }
+
+    if (!hasError) {
+        clearError();
+    }
+}
+
+// --- BASE SELECTION HANDLER ---
+function handleBaseChange() {
+    const selected = baseSelect.value;
+    
+    // Show/hide the custom base input field
+    if (selected === 'custom') {
+        customBaseInput.style.display = 'block';
+    } else {
+        customBaseInput.style.display = 'none';
+    }
+    
+    // Re-run the conversion with the new base
+    handleInputChange();
+}
+
+// --- STEP-BY-STEP BREAKDOWN LOGIC ---
+const stepModal = document.getElementById('stepModal');
+const stepContent = document.getElementById('stepContent');
+
+function closeModal() {
+    stepModal.style.display = 'none';
+}
+
+function showSteps(targetBase) {
+    let baseFrom = baseSelect.value === 'custom' 
+        ? parseInt(customBaseInput.value) 
+        : parseInt(baseSelect.value);
+    
+    const inputStr = inputField.value.trim().toUpperCase();
+    const decimalValue = parseInt(inputStr, baseFrom);
+
+    if (!inputStr || isNaN(decimalValue)) {
+        alert("Please enter a valid number and select a base first.");
+        return;
+    }
+
+    let breakdown = `Conversion: ${inputStr} (Base ${baseFrom}) to Base ${targetBase}\n\n`;
+
+    // Step 1: Convert to Decimal (Base 10)
+    breakdown += `[STEP 1: Convert to Decimal]\n`;
+    if (baseFrom !== 10) {
+        breakdown += `${inputStr} = `;
+        let sum = 0;
+        let terms = [];
+        for (let i = 0; i < inputStr.length; i++) {
+            const char = inputStr[inputStr.length - 1 - i];
+            // Use parseInt to get the value of the digit (e.g., 'F' is 15 in base 16)
+            const val = parseInt(char, baseFrom); 
+            sum += val * Math.pow(baseFrom, i);
+            terms.unshift(`${val} * ${baseFrom}^${i}`);
+        }
+        breakdown += terms.join(' + ') + `\n  = ${sum} (Base 10)\n\n`;
+    } else {
+        breakdown += `Input is already Decimal: ${decimalValue} (Base 10)\n\n`;
+    }
+
+    // Step 2: Convert from Decimal to Target Base (Repeated Division Method)
+    breakdown += `[STEP 2: Convert Decimal to Base ${targetBase}]\n`;
+    if (targetBase !== 10) {
+        let tempValue = decimalValue;
+        let result = [];
+        breakdown += `Repeatedly divide the Decimal value by the Target Base (${targetBase}):\n`;
+        
+        if (tempValue === 0) {
+             breakdown += `  0 / ${targetBase} = 0 (Remainder: 0)\n`;
+             result = ['0'];
+        }
+
+        while (tempValue > 0) {
+            const remainder = tempValue % targetBase;
+            const division = Math.floor(tempValue / targetBase);
+            
+            // Use .toString(36) to get the correct character (0-9, A-Z) for the remainder
+            const remainderChar = remainder.toString(targetBase).toUpperCase(); 
+
+            breakdown += `  ${tempValue} / ${targetBase} = ${division} (Remainder: ${remainderChar})\n`;
+            
+            result.unshift(remainderChar);
+            tempValue = division;
+        }
+        
+        breakdown += `\nFinal Result (reading remainders upwards): ${result.join('')} (Base ${targetBase})`;
+    } else {
+        breakdown += `Target is Decimal, result is: ${decimalValue} (Base 10)`;
+    }
+
+    stepContent.textContent = breakdown;
+    stepModal.style.display = 'block';
+}
+
+// Close the modal when the user clicks anywhere outside of it
+window.onclick = function(event) {
+    if (event.target === stepModal) {
+        closeModal();
+    }
+}
+
+// --- INITIALIZATION ---
+window.onload = function() {
+    // Attach the functions to the DOM elements
+    inputField.addEventListener('input', handleInputChange);
+    baseSelect.addEventListener('change', handleBaseChange);
+    customBaseInput.addEventListener('input', handleInputChange);
+    
+    // Run an initial conversion to set up the default state
+    handleInputChange();
+}
+    </script>
+</body>
+</html>
